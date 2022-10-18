@@ -1,11 +1,6 @@
 /**
  * @file phase3.c
- * @author your name (you@domain.com)
- * @brief 
- * @version 0.1
- * @date 2022-10-14
- * 
- * @copyright Copyright (c) 2022
+ * @author Nicholas Eng, Dyllon Enos
  * 
  */
 
@@ -26,6 +21,7 @@ struct Semaphore
 {
     int id;
     int value;
+    //int dangerCheck;
 };
 
 int currentID = 1;
@@ -48,11 +44,13 @@ void phase3_start_service_processes(void)
 
 }
 
+
+// spawn handler
 void syscallHandler(USLOSS_Sysargs *args)
 {
     if (args->number == SYS_SPAWN)
     {
-        int result = fork1(args->arg5, args->arg1, args->arg2, args->arg3, args.4);
+        int result = fork1(args->arg5, args->arg1, args->arg2, args->arg3, args->arg4);
         if (result <= 0)
         {
             args->arg1 = -1;
@@ -126,43 +124,4 @@ void syscallHandler(USLOSS_Sysargs *args)
     {
         args->arg1 = getpid();
     }
-}
-
-
-/**
- * @brief TODO
- * 
- * @param value 
- * @param semaphore 
- * @return int 
- */
-int SemCreate(int value, int *semaphore)
-{
-    if (value < 0)
-    {
-        return -1;
-    }
-    return 0;
-}
-
-/**
- * @brief TODO
- * 
- * @param semaphore 
- * @return int 
- */
-int SemP(int semaphore)
-{
-
-}
-
-/**
- * @brief TODO
- * 
- * @param semaphore 
- * @return int 
- */
-int SemV(int semaphore)
-{
-
 }

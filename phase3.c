@@ -16,8 +16,9 @@
 #include <stdlib.h>
 #include <usloss.h>
 #include <usyscall.h>
+#include <string.h>
 
-int currentSemID = 1;
+int currentSemID = 0;
 int currentPID = 1;
 
 void syscallHandler(USLOSS_Sysargs *args);
@@ -32,6 +33,25 @@ struct Process
     int priority;
 };
 
+Process *process_table[MAXPROC];
+int current = 0;
+int old_psr = 0;
+
+void addToProcessTable(USLOSS_Sysargs *args)
+{
+    Process *new_node = malloc(sizeof(Process));
+    new_node->id = current + 1;
+    new_node->name = args->arg5;
+    new_node->func = args->arg1;
+    new_node->arg = args->arg2;
+    new_node->stack_size = args->arg3;
+    new_node->priority = args->arg4;
+
+    process_table[current] = new_node;
+
+    current += 1;
+}
+
 /**
  * @brief This function will set all of the elements
  * of the system call array with our syscallHandler()
@@ -40,6 +60,7 @@ struct Process
  */
 void phase3_init(void)
 {
+    memset(&process_table, 0, MAXPROC * sizeof(Process));
     for (int index = 0; index < MAXSYSCALLS; index++)
     {
         systemCallVec[index] = &syscallHandler;
@@ -54,18 +75,33 @@ void phase3_start_service_processes(void)
 {
 }
 
+void trampoline(void *arg)
+{
+    int old_psr = USLOSS_PsrGet();
+    if (old_psr & 1 == 1)
+    {
+        USLOSS_PsrSet(old_psr & 254);
+    }
+    int pid = (int)arg;
+    Process *process = process_table[pid];
+    process->func(process->arg);
+}
+
 void syscallHandler(USLOSS_Sysargs *args)
 {
-    int old = USLOSS_PsrGet();
-    USLOSS_PsrSet(2);
     // Spawn() syscall
     if (args->number == SYS_SPAWN)
-    {       
-        // int result = fork1(args->arg5, args->arg1, args->arg2, args->arg3, args->arg4);
-        int (*func)(char *) = args->arg1;
-        char *arg = args->arg2;
-        
-        func(arg);
+    {   
+        addToProcessTable(args);
+        void (*func_ptr)(void*) = &trampoline;
+        int result = fork1(args->arg5, func_ptr, current-1, args->arg3, (int)args->arg4);
+        args->arg1 = result;
+        args->arg4 = 0;
+        if (result < 0)
+        {
+            args->arg1 = -1;
+            args->arg4 = -1;
+        }
         // USLOSS_PsrSet(old);
         currentPID += 1;
     }
@@ -73,7 +109,6 @@ void syscallHandler(USLOSS_Sysargs *args)
     // Wait() syscall
     else if (args->number == SYS_WAIT)
     {
-        USLOSS_PsrSet(old);
         int status = 0;
         int result = join(&status);
         args->arg1 = result;
@@ -92,9 +127,8 @@ void syscallHandler(USLOSS_Sysargs *args)
     // Terminate() syscall
     else if (args->number == SYS_TERMINATE)
     {
-        USLOSS_PsrSet(old);
         // Joins until we removed all processes
-        while (join(args->arg1) != -2)
+        while (join(args->arg1) > 0)
         {
             ;
         }

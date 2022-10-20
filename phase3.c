@@ -35,9 +35,20 @@ struct Process
     int priority;
 };
 
+typedef struct Semaphore Semaphore;
+struct Semaphore
+{
+    int sem_id;
+    int mailbox_id;
+    int value;
+};
+
+
 Process *process_table[MAXPROC];
+Semaphore *sem_table[MAXSEMS];
 int current = 0;
 int old_psr = 0;
+
 
 void addToProcessTable(USLOSS_Sysargs *args)
 {
@@ -63,6 +74,7 @@ void addToProcessTable(USLOSS_Sysargs *args)
 void phase3_init(void)
 {
     memset(&process_table, 0, sizeof(process_table));
+    memset(&sem_table, 0, sizeof(sem_table));
     for (int index = 0; index < MAXSYSCALLS; index++)
     {
         systemCallVec[index] = &syscallHandler;
@@ -142,9 +154,13 @@ void syscallHandler(USLOSS_Sysargs *args)
     // SemCreate() syscall
     else if (args->number == SYS_SEMCREATE)
     {
-        // TODO
+        sem_table[currentSemID]->sem_id = currentSemID;
+        sem_table[currentSemID]->value = args->arg1;
+        int mbox_id = MboxCreate(1, 0);
+        sem_table[currentSemID]->mailbox_id = mbox_id;
+
         args->arg4 = 0;
-        args->arg1 = currentSemID;
+        args->arg1 = sem_table[currentSemID]->sem_id;
         if (args->arg1 < 0 || currentSemID >= MAXSEMS)
         {
             args->arg4 = -1;
@@ -154,12 +170,15 @@ void syscallHandler(USLOSS_Sysargs *args)
     }
 
     // SemP() syscall
+    // MboxReceive()
     else if (args->number == SYS_SEMP)
     {
-        //while (args->arg1 == 0)
-        //{
-        //    ;
-        //}
+        Semaphore *sem = sem_table[(int)args->arg1];
+        // while (args->arg1 == 0)
+        // {
+        //     Lock here
+        //     ;
+        // }
         args->arg1 -= 1;
         args->arg4 = 0;
         if (args->arg1 < 1)
@@ -169,6 +188,7 @@ void syscallHandler(USLOSS_Sysargs *args)
     }
 
     // SemV() syscall
+    // MboxSend()
     else if (args->number == SYS_SEMV)
     {
         args->arg1 += 1;
@@ -182,13 +202,13 @@ void syscallHandler(USLOSS_Sysargs *args)
     // GetTimeofDay() syscall
    else if (args->number == SYS_GETTIMEOFDAY)
     {
-        args->arg1 = currentTime();
+        args->arg1 = readtime();
     }
 
     // CPUTime() syscall
     else if (args->number == SYS_GETPROCINFO)
     {
-        args->arg1 = readtime();
+        args->arg1 = currentTime();
     }
 
     // GetPID() syscall

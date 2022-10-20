@@ -1,3 +1,4 @@
+
 /**
  * @file phase3.c
  * @author Nicholas Eng and Dyllon Enos
@@ -17,6 +18,7 @@
 #include <usloss.h>
 #include <usyscall.h>
 #include <string.h>
+#include <phase3.h>
 
 int currentSemID = 0;
 int currentPID = 1;
@@ -60,7 +62,7 @@ void addToProcessTable(USLOSS_Sysargs *args)
  */
 void phase3_init(void)
 {
-    memset(&process_table, 0, MAXPROC * sizeof(Process));
+    memset(&process_table, 0, sizeof(process_table));
     for (int index = 0; index < MAXSYSCALLS; index++)
     {
         systemCallVec[index] = &syscallHandler;
@@ -84,7 +86,8 @@ void trampoline(void *arg)
     }
     int pid = (int)arg;
     Process *process = process_table[pid];
-    process->func(process->arg);
+    int retVal = process->func(process->arg);
+    Terminate(retVal);
 }
 
 void syscallHandler(USLOSS_Sysargs *args)
@@ -128,9 +131,10 @@ void syscallHandler(USLOSS_Sysargs *args)
     else if (args->number == SYS_TERMINATE)
     {
         // Joins until we removed all processes
-        while (join(args->arg1) > 0)
-        {
-            ;
+        int retVal = 0;
+        while (retVal != -2) {
+            int status;
+            retVal = join(&status);
         }
         quit(args->arg1);
     }
@@ -140,21 +144,22 @@ void syscallHandler(USLOSS_Sysargs *args)
     {
         // TODO
         args->arg4 = 0;
-        if (args->arg1 < 0)
+        args->arg1 = currentSemID;
+        if (args->arg1 < 0 || currentSemID >= MAXSEMS)
         {
             args->arg4 = -1;
+            args->arg1 = 0;
         }
-        args->arg1 = currentSemID;
         currentSemID++;
     }
 
     // SemP() syscall
     else if (args->number == SYS_SEMP)
     {
-        while (args->arg1 == 0)
-        {
-            ;
-        }
+        //while (args->arg1 == 0)
+        //{
+        //    ;
+        //}
         args->arg1 -= 1;
         args->arg4 = 0;
         if (args->arg1 < 1)
